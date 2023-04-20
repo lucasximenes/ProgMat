@@ -28,7 +28,7 @@ function find_subtour(mat::Matrix{Float64})
     start = 1
     visited[1] = 1
     visited_amnt = 1
-    for i in 1:14
+    for i in 1:n
         next = findfirst(mat[start, :] .> 0.5)
         if visited[next] == 1
             break 
@@ -47,7 +47,6 @@ end
 
 function lazy_constraint_TSP(instance::TSP)
     n = instance.dimension
-    
     m = Model(HiGHS.Optimizer)
     set_silent(m)
     @variable(m, x[1:n, 1:n], Bin)
