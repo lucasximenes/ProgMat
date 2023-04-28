@@ -349,12 +349,12 @@ obj, x = simplex(deepcopy(A), deepcopy(b), deepcopy(c), s)
 obj_float = convert(Float64, obj)
 
 A = [
-    2//1  5//1 
-    1//1 4//1 
+    9//1  5//1 
+    7//1 3//1 
 ]
-b = [ 5//1, 3//1 ]
-c = [ 5//1, 7//1 ]
-s = [ "≤", "=" ]
+b = [ 5//1, 2//1 ]
+c = [ 8//1, 2//1 ]
+s = [ "=", "≤" ]
 
 obj, x = simplex(deepcopy(A), deepcopy(b), deepcopy(c), s)
 

@@ -1,11 +1,11 @@
-using TSPLIB, JuMP, HiGHS, MathOptInterface
+using TSPLIB, JuMP, HiGHS, MathOptInterface, Graphs, CPLEX
 
 tsp_tokens = [:burma14, :ulysses16, :gr17, :gr21]
 
 function MTZ_TSP(instance::TSP)
     n = instance.dimension
     
-    m = Model(HiGHS.Optimizer)
+    m = Model(CPLEX.Optimizer)
     set_silent(m)
     @variable(m, x[1:n, 1:n], Bin)
     @variable(m, u[1:n], Int)
@@ -21,55 +21,40 @@ function MTZ_TSP(instance::TSP)
     return value.(x), objective_value(m)
 end
 
-function find_subtour(mat::Matrix{Float64})
-    n = size(mat)[1]
-    visited = zeros(n)
-    
-    start = 1
-    visited[1] = 1
-    visited_amnt = 1
-    for i in 1:n
-        next = findfirst(mat[start, :] .> 0.5)
-        if visited[next] == 1
-            break 
-        else
-            visited[next] = 1
-            visited_amnt += 1
-        end
-        start = next
-    end
-    if visited_amnt < n
-        return findall(visited .== 1)
-    else
-        return false
-    end
+function find_subtours(mat::Matrix{Float64})
+    graph = SimpleDiGraph(mat)
+    return connected_components(graph)
 end
 
-function lazy_constraint_TSP(instance::TSP)
+
+function lazy_constraint_callback_TSP(instance::TSP)
     n = instance.dimension
-    m = Model(HiGHS.Optimizer)
+    m = Model(CPLEX.Optimizer)
     set_silent(m)
     @variable(m, x[1:n, 1:n], Bin)
     @constraint(m, [i in 1:n], sum(x[i, j] for j in 1:n if j != i) == 1)
     @constraint(m, [j in 1:n], sum(x[i, j] for i in 1:n if i != j) == 1)
     @objective(m, Min, sum(instance.weights[i,j]*x[i,j] for i in 1:n, j in 1:n if i != j))
-    optimize!(m)
     
+    function subtour_callback(cb_data)
+        mat = callback_value.(cb_data, x)
+        subtours = find_subtours(mat)
+        if length(subtours) != 1
+            for subtour in subtours
+                subtour_size = length(subtour)
+                con = @build_constraint(sum(x[i,j] for i in subtour, j in subtour if i != j) <= subtour_size - 1)
+                MOI.submit(m, MOI.LazyConstraint(cb_data), con)
+            end
+        end
+    end
+
+    set_attribute(m, MOI.LazyConstraintCallback(), subtour_callback)
+    
+    optimize!(m)
+
     if termination_status(m) != MathOptInterface.OPTIMAL
         println("problema ao otimizar")
         return
-    end
-    
-    subtour = find_subtour(value.(x))
-    while subtour != false
-        subtour_size = length(subtour)
-        @constraint(m, sum(x[i,j] for i in subtour, j in subtour if i != j) <= subtour_size - 1)
-        optimize!(m)
-        if termination_status(m) != MathOptInterface.OPTIMAL
-            println("problema ao otimizar")
-            return
-        end
-        subtour = find_subtour(value.(x))
     end
     return value.(x), objective_value(m)
 end
@@ -93,10 +78,17 @@ results = Dict{Tuple{Symbol, String}, Tuple{Matrix{Float64}, Float64}}()
 
 for token in tsp_tokens
     tsp_object = readTSPLIB(token)
+    @show token
     @time x, obj = MTZ_TSP(tsp_object)
     results[(token, "MTZ")] = (x, obj)
-    @time x, obj = lazy_constraint_TSP(tsp_object)
-    results[(token, "lazy_constraint")] = (x, obj)
+    @time x, obj = lazy_constraint_callback_TSP(tsp_object)
+    results[(token, "callback_lazy_constraint")] = (x, obj)
 end
 
 results
+
+instance = readTSPLIB(:si175)
+
+@time x, obj = lazy_constraint_graph_callback_TSP(instance)
+
+obj == instance.optimal
