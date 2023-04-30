@@ -37,13 +37,18 @@ function lazy_constraint_callback_TSP(instance::TSP)
     @objective(m, Min, sum(instance.weights[i,j]*x[i,j] for i in 1:n, j in 1:n if i != j))
     
     function subtour_callback(cb_data)
-        mat = callback_value.(cb_data, x)
-        subtours = find_subtours(mat)
-        if length(subtours) != 1
-            for subtour in subtours
-                subtour_size = length(subtour)
-                con = @build_constraint(sum(x[i,j] for i in subtour, j in subtour if i != j) <= subtour_size - 1)
-                MOI.submit(m, MOI.LazyConstraint(cb_data), con)
+        status = callback_node_status(cb_data, m)
+        if status == MOI.CALLBACK_NODE_STATUS_INTEGER
+            mat = callback_value.(cb_data, x)
+            subtours = find_subtours(mat)
+            if length(subtours) != 1
+                for subtour in subtours
+                    subtour_size = length(subtour)
+                    # if subtour_size <= n/2
+                    con = @build_constraint(sum(x[i,j] for i in subtour, j in subtour if i != j) <= subtour_size - 1)
+                    MOI.submit(m, MOI.LazyConstraint(cb_data), con)
+                    # end
+                end
             end
         end
     end
@@ -87,8 +92,9 @@ end
 
 results
 
-instance = readTSPLIB(:si175)
+instance = readTSPLIB(:rat195)
 
-@time x, obj = lazy_constraint_graph_callback_TSP(instance)
+@time x, obj = lazy_constraint_callback_TSP(instance)
 
-obj == instance.optimal
+obj - instance.optimal
+
