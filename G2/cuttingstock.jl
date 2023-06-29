@@ -2,6 +2,7 @@ using JuMP, CPLEX, BPPLib, SparseArrays
 
 data = loadCSP(:PM_u120_01)
 
+
 function params(instance)
     n = length(instance.weights)
     I = 1:n
