@@ -1,6 +1,6 @@
 using JuMP, CPLEX, CVRPLIB, CVRPSEP, Graphs, MathOptInterface
 
-cvrp, _, _ = readCVRPLIB("E-n13-k4")
+cvrp, _, _ = readCVRPLIB("E-n51-k5")
 
 function find_subtours(mat::Matrix{Float64})
     mat = round.(mat)
@@ -37,6 +37,7 @@ function solve(instance)
     @constraint(m, sum(x[i, 1] for i in 1:n) == K)
     
     # @constraint(m, K == 4)
+    @constraint(m,[i in 1:n], x[i,i] == 0)
 
     ## capacity constraint
     cut_manager = CutManager()
@@ -47,7 +48,7 @@ function solve(instance)
         
         if status == MOI.CALLBACK_NODE_STATUS_INTEGER
 
-            println("callback foi chamado")
+            # println("callback foi chamado")
 
             edge_tail = Int64[]
             edge_head = Int64[]
@@ -68,14 +69,14 @@ function solve(instance)
 
             # @show SS
             # @show rhs
-            println(SS, length(SS))
+            # println(SS, length(SS))
 
             for (index, subtour) in enumerate(SS)
                 rhs_aux = ceil(sum(d[i] for i in subtour)/C)
 
 
-                println("Comparação RHS (CVRPSEP vs manual):  ", rhs[index], " || ", rhs_aux)
-                println("=====================================")
+                # println("Comparação RHS (CVRPSEP vs manual):  ", rhs[index], " || ", rhs_aux)
+                # println("=====================================")
 
                 not_in_subtour = setdiff(collect(1:n), subtour)
 
@@ -84,9 +85,9 @@ function solve(instance)
                         lhs += mat[i,j]
                 end
 
-                println(lhs, " || ", rhs_aux)
-                println("=====================================")
-                println(lhs, " || ", rhs[index])
+                # println(lhs, " || ", rhs_aux)
+                # println("=====================================")
+                # println(lhs, " || ", rhs[index])
 
                 con = @build_constraint(sum(x[i,j] for i in subtour, j in not_in_subtour) >= rhs_aux)
                 MOI.submit(m, MOI.LazyConstraint(cb_data), con)
